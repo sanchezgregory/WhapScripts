@@ -1,0 +1,9 @@
+# Local IDE metadata
+.idea/
+
+# Env source-of-truth files may contain shared secrets.
+.whap-integration.*.env
+
+# Generated backups of project .env files.
+backups/
+*.backup-*
