@@ -241,6 +241,16 @@ expected_whap_api_base_url() {
   fi
 }
 
+expected_allowed_hostnames() {
+  if [[ "$TARGET" == "local" ]]; then
+    printf '%s' "'\"localhost:3000\",\"127.0.0.1:3000\"'"
+  elif [[ "$TARGET" == "dev" ]]; then
+    printf '%s' "'\"dev.whap.uy:8444\",\"dev.whap.uy\",\"localhost:3001\",\"127.0.0.1:3001\"'"
+  else
+    printf '%s' "'\"whap.uy:8443\",\"whap.uy\",\"www.whap.uy\",\"localhost:3000\",\"127.0.0.1:3000\"'"
+  fi
+}
+
 check_env_values() {
   local failures=0
   local source_secret="$WHAPCALENDAR_WEBHOOK_SECRET"
@@ -250,6 +260,10 @@ check_env_values() {
   local whap_wc_public_url="$(env_get WHAPCALENDAR_PUBLIC_URL "$WHAP_ENV_FILE" || true)"
   local wc_whap_url="$(env_get NEXT_PUBLIC_WHAP_URL "$WC_ENV_PATH" || true)"
   local wc_whap_api="$(env_get WHAP_API_BASE_URL "$WC_ENV_PATH" || true)"
+  local wc_webapp_url="$(env_get NEXT_PUBLIC_WEBAPP_URL "$WC_ENV_PATH" || true)"
+  local wc_nextauth_url="$(env_get NEXTAUTH_URL "$WC_ENV_PATH" || true)"
+  local wc_web_app_url="$(env_get WEB_APP_URL "$WC_ENV_PATH" || true)"
+  local wc_embed_url="$(env_get NEXT_PUBLIC_EMBED_LIB_URL "$WC_ENV_PATH" || true)"
   local expected_api="$(expected_whap_api_base_url)"
 
   info ""
@@ -265,6 +279,10 @@ check_env_values() {
 
   [[ "$whap_wc_url" == "$WHAPCALENDAR_URL" ]] || { fail "Whap WHAPCALENDAR_URL=$whap_wc_url expected $WHAPCALENDAR_URL"; failures=$((failures + 1)); }
   [[ "$whap_wc_public_url" == "$WHAPCALENDAR_URL" ]] || { fail "Whap WHAPCALENDAR_PUBLIC_URL=$whap_wc_public_url expected $WHAPCALENDAR_URL"; failures=$((failures + 1)); }
+  [[ "$wc_webapp_url" == "$WHAPCALENDAR_URL" ]] || { fail "WC NEXT_PUBLIC_WEBAPP_URL=$wc_webapp_url expected $WHAPCALENDAR_URL"; failures=$((failures + 1)); }
+  [[ "$wc_nextauth_url" == "$WHAPCALENDAR_URL" ]] || { fail "WC NEXTAUTH_URL=$wc_nextauth_url expected $WHAPCALENDAR_URL"; failures=$((failures + 1)); }
+  [[ "$wc_web_app_url" == "$WHAPCALENDAR_URL" ]] || { fail "WC WEB_APP_URL=$wc_web_app_url expected $WHAPCALENDAR_URL"; failures=$((failures + 1)); }
+  [[ "$wc_embed_url" == "$WHAPCALENDAR_URL/embed/embed.js" ]] || { fail "WC NEXT_PUBLIC_EMBED_LIB_URL=$wc_embed_url expected $WHAPCALENDAR_URL/embed/embed.js"; failures=$((failures + 1)); }
   [[ "$wc_whap_url" == "$WHAP_URL" ]] || { fail "WC NEXT_PUBLIC_WHAP_URL=$wc_whap_url expected $WHAP_URL"; failures=$((failures + 1)); }
   [[ "$wc_whap_api" == "$expected_api" ]] || { fail "WC WHAP_API_BASE_URL=$wc_whap_api expected $expected_api"; failures=$((failures + 1)); }
 
@@ -343,6 +361,7 @@ run_apply() {
   validate_paths_and_branches
 
   local expected_api="$(expected_whap_api_base_url)"
+  local expected_allowed="$(expected_allowed_hostnames)"
 
   apply_env_file "$WHAP_ENV_FILE" \
     WHAPCALENDAR_URL "$WHAPCALENDAR_URL" \
@@ -351,6 +370,12 @@ run_apply() {
     WHAPCALENDAR_WEBHOOK_SECRET "$WHAPCALENDAR_WEBHOOK_SECRET"
 
   apply_env_file "$WC_ENV_PATH" \
+    NEXT_PUBLIC_WEBAPP_URL "$WHAPCALENDAR_URL" \
+    NEXT_PUBLIC_WEBSITE_URL "$WHAPCALENDAR_URL" \
+    NEXTAUTH_URL "$WHAPCALENDAR_URL" \
+    WEB_APP_URL "$WHAPCALENDAR_URL" \
+    NEXT_PUBLIC_EMBED_LIB_URL "$WHAPCALENDAR_URL/embed/embed.js" \
+    ALLOWED_HOSTNAMES "$expected_allowed" \
     NEXT_PUBLIC_WHAP_URL "$WHAP_URL" \
     NEXT_PUBLIC_WHAP_LOGIN_URL "$WHAP_URL/login" \
     NEXT_PUBLIC_WHAP_PROFILE_URL "$WHAP_URL/backoffice/settings/profile" \

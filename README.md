@@ -50,6 +50,12 @@ WHAPCALENDAR_WEBHOOK_SECRET=
 WhapCalendar variables managed:
 
 ```env
+NEXT_PUBLIC_WEBAPP_URL=
+NEXT_PUBLIC_WEBSITE_URL=
+NEXTAUTH_URL=
+WEB_APP_URL=
+NEXT_PUBLIC_EMBED_LIB_URL=
+ALLOWED_HOSTNAMES=
 NEXT_PUBLIC_WHAP_URL=
 NEXT_PUBLIC_WHAP_LOGIN_URL=
 NEXT_PUBLIC_WHAP_PROFILE_URL=
@@ -111,6 +117,8 @@ Add these source files when using the same script on the VPS:
 
 These files must not be committed. They are ignored by `.gitignore` because they contain shared secrets.
 
+`WHAPCALENDAR_WEBHOOK_SECRET` is the shared webhook secret used by both Whap and WhapCalendar. It must be identical in the Whap `.env`, the active WhapCalendar env file, and both runtimes. This value must only come from the matching source-of-truth file and must never be generated independently by a deploy script on the VPS.
+
 ## Hermes Deploy Agent Rule
 
 Add this rule to the Hermes deploy prompt:
@@ -139,11 +147,13 @@ PROD pair:
 Mandatory flow:
 1. Run `/home/greg/whapscripts/whap-env-sync check <dev|prod>` before build/deploy.
 2. If check fails because integration env values differ, run `/home/greg/whapscripts/whap-env-sync apply <dev|prod>`.
-3. Recreate containers after env changes. Do not rebuild WhapCalendar only for env changes unless code/build inputs changed.
-4. Run `/home/greg/whapscripts/whap-env-sync runtime <dev|prod>` after containers are recreated.
-5. Run `/home/greg/whapscripts/whap-env-sync smoke <dev|prod>` before marking deploy complete.
+3. Confirm `WHAPCALENDAR_WEBHOOK_SECRET` has the same hash in Whap and WhapCalendar. If it differs, stop; do not deploy.
+4. Recreate containers after env changes. Do not rebuild WhapCalendar only for env changes unless code/build inputs changed.
+5. After any WhapCalendar rebuild or container recreation, verify the paired Whap containers are still running. If `laravel.test` is stopped, start Whap with `docker compose up -d` in the matching Whap project. The WC helper `scripts/wc-up.sh` performs this check automatically for VPS `up` actions.
+6. Run `/home/greg/whapscripts/whap-env-sync runtime <dev|prod>` after containers are recreated.
+7. Run `/home/greg/whapscripts/whap-env-sync smoke <dev|prod>` before marking deploy complete.
 
-Never mix DEV and PROD secrets. Never copy variables between `/home/greg/apps/dev.whap.uy`, `/home/greg/apps/dev.whapcalendar.uy`, `/home/greg/apps/whap.uy`, and `/home/greg/apps/whapcalendar.uy` except through `whap-env-sync apply <env>` using the matching source file.
+Never mix DEV and PROD secrets. Never copy variables between `/home/greg/apps/dev.whap.uy`, `/home/greg/apps/dev.whapcalendar.uy`, `/home/greg/apps/whap.uy`, and `/home/greg/apps/whapcalendar.uy` except through `whap-env-sync apply <env>` using the matching source file. Never let `wc-up.sh` or any deploy step generate a random `WHAPCALENDAR_WEBHOOK_SECRET` on the VPS.
 ```
 
 Alternative local-only layout for development machines:
@@ -164,7 +174,7 @@ WHAP_APP_PORT=8002
 WHAPCALENDAR_PATH=/home/greg/apps/dev.whapcalendar.uy
 WHAPCALENDAR_BRANCH=develop
 WHAPCALENDAR_URL=https://dev.whap.uy:8444
-WHAPCALENDAR_ENV_FILE=.env
+WHAPCALENDAR_ENV_FILE=.env.wc.vps.testing
 WHAPCALENDAR_WEBHOOK_SECRET=replace-with-dev-secret
 ```
 
@@ -179,6 +189,6 @@ WHAP_APP_PORT=8001
 WHAPCALENDAR_PATH=/home/greg/apps/whapcalendar.uy
 WHAPCALENDAR_BRANCH=main
 WHAPCALENDAR_URL=https://whap.uy:8443
-WHAPCALENDAR_ENV_FILE=.env
+WHAPCALENDAR_ENV_FILE=.env.wc.vps.production
 WHAPCALENDAR_WEBHOOK_SECRET=replace-with-prod-secret
 ```
