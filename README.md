@@ -119,6 +119,29 @@ These files must not be committed. They are ignored by `.gitignore` because they
 
 `WHAPCALENDAR_WEBHOOK_SECRET` is the shared webhook secret used by both Whap and WhapCalendar. It must be identical in the Whap `.env`, the active WhapCalendar env file, and both runtimes. This value must only come from the matching source-of-truth file and must never be generated independently by a deploy script on the VPS.
 
+## Docker Cleanup
+
+Use the shared Docker cleanup helper when WhapCalendar or Whap Docker builds fail with `no space left on device`, or before a large rebuild on a cramped VPS:
+
+```bash
+/home/greg/whapscripts/whap-docker-clean status
+/home/greg/whapscripts/whap-docker-clean clean
+```
+
+For non-interactive deploy scripts:
+
+```bash
+/home/greg/whapscripts/whap-docker-clean clean --yes
+```
+
+The cleanup removes Docker build cache, stopped containers, unused images, and unused BuildKit cache. It does not remove Docker volumes, so database volumes are left intact. The next image build may be slower because Docker must regenerate cache layers.
+
+WhapCalendar deploys can invoke this pre-deploy cleanup with:
+
+```bash
+./scripts/wc-up.sh --target vps --mode testing --strategy rebuild --clean-docker
+```
+
 ## Hermes Deploy Agent Rule
 
 Add this rule to the Hermes deploy prompt:

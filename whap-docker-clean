@@ -1,0 +1,132 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+usage() {
+  cat <<'USAGE'
+Whap Docker cleanup helper
+
+Usage:
+  whap-docker-clean status
+  whap-docker-clean clean [--yes]
+
+Commands:
+  status  Show filesystem and Docker disk usage.
+  clean   Prune Docker builder cache, stopped containers, unused images, and builder cache again.
+
+Options:
+  --yes   Run clean without an interactive confirmation.
+  --help  Show this help.
+
+Notes:
+  clean does not remove Docker volumes. It avoids database volume deletion.
+  The next Docker build may be slower because BuildKit cache is removed.
+USAGE
+}
+
+COMMAND="${1:-}"
+YES=0
+
+shift $(( $# >= 1 ? 1 : 0 )) || true
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --yes|-y)
+      YES=1
+      shift
+      ;;
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "Unknown option: $1" >&2
+      usage >&2
+      exit 1
+      ;;
+  esac
+done
+
+if [[ -z "$COMMAND" ]]; then
+  usage >&2
+  exit 1
+fi
+
+if [[ "$COMMAND" != "status" && "$COMMAND" != "clean" ]]; then
+  echo "Invalid command: $COMMAND" >&2
+  usage >&2
+  exit 1
+fi
+
+require_command() {
+  if ! command -v "$1" >/dev/null 2>&1; then
+    echo "Missing required command: $1" >&2
+    exit 1
+  fi
+}
+
+confirm() {
+  local prompt="$1"
+  local answer=""
+
+  read -r -p "$prompt [y/N] " answer
+  [[ "$answer" == "y" || "$answer" == "Y" || "$answer" == "yes" || "$answer" == "YES" ]]
+}
+
+section() {
+  echo
+  echo "==> $1"
+}
+
+show_status() {
+  section "Filesystem usage"
+  df -h /
+
+  section "Docker usage"
+  docker system df
+}
+
+run_prune() {
+  section "Pruning BuildKit cache"
+  docker builder prune -f
+
+  section "Pruning stopped containers"
+  docker container prune -f
+
+  section "Pruning unused images"
+  docker image prune -a -f
+
+  section "Pruning all unused BuildKit cache"
+  docker builder prune -a -f
+}
+
+run_clean() {
+  show_status
+
+  echo
+  echo "This will remove Docker build cache, stopped containers, and unused images."
+  echo "Docker volumes are not removed. Database volumes are left intact."
+  echo "Future builds may take longer because build cache will be regenerated."
+
+  if [[ "$YES" -ne 1 ]] && ! confirm "Continue with Docker cleanup?"; then
+    echo "Aborted."
+    exit 0
+  fi
+
+  run_prune
+
+  section "Final status"
+  show_status
+}
+
+require_command df
+require_command docker
+
+case "$COMMAND" in
+  status)
+    show_status
+    ;;
+  clean)
+    run_clean
+    ;;
+esac
