@@ -162,9 +162,11 @@ load_source() {
   WHAP_BRANCH="$(env_get WHAP_BRANCH "$SOURCE_FILE" || true)"
   WHAP_URL="$(env_get WHAP_URL "$SOURCE_FILE" || true)"
   WHAP_APP_PORT="$(env_get WHAP_APP_PORT "$SOURCE_FILE" || true)"
+  WHAP_API_BASE_URL="$(env_get WHAP_API_BASE_URL "$SOURCE_FILE" || true)"
   WHAPCALENDAR_PATH="$(env_get WHAPCALENDAR_PATH "$SOURCE_FILE" || true)"
   WHAPCALENDAR_BRANCH="$(env_get WHAPCALENDAR_BRANCH "$SOURCE_FILE" || true)"
   WHAPCALENDAR_URL="$(env_get WHAPCALENDAR_URL "$SOURCE_FILE" || true)"
+  WHAPCALENDAR_INTERNAL_URL="$(env_get WHAPCALENDAR_INTERNAL_URL "$SOURCE_FILE" || true)"
   WHAPCALENDAR_ENV_FILE="$(env_get WHAPCALENDAR_ENV_FILE "$SOURCE_FILE" || true)"
   WHAPCALENDAR_WEBHOOK_SECRET="$(env_get WHAPCALENDAR_WEBHOOK_SECRET "$SOURCE_FILE" || true)"
 
@@ -230,15 +232,26 @@ validate_paths_and_branches() {
 }
 
 expected_whapcalendar_internal_url() {
+  if [[ -n "${WHAPCALENDAR_INTERNAL_URL:-}" ]]; then
+    printf '%s' "$WHAPCALENDAR_INTERNAL_URL"
+    return
+  fi
+
+  if [[ "$TARGET" == "local" ]]; then
+    printf 'http://whapcalendar:3000'
+    return
+  fi
+
   printf '%s' "$WHAPCALENDAR_URL"
 }
 
 expected_whap_api_base_url() {
-  if [[ "$TARGET" == "local" ]]; then
-    printf 'http://host.docker.internal:%s/api' "$WHAP_APP_PORT"
-  else
-    printf 'http://host.docker.internal:%s/api' "$WHAP_APP_PORT"
+  if [[ -n "${WHAP_API_BASE_URL:-}" ]]; then
+    printf '%s' "$WHAP_API_BASE_URL"
+    return
   fi
+
+  printf 'http://whap/api'
 }
 
 expected_allowed_hostnames() {
@@ -258,6 +271,7 @@ check_env_values() {
   local wc_secret="$(env_get WHAPCALENDAR_WEBHOOK_SECRET "$WC_ENV_PATH" || true)"
   local whap_wc_url="$(env_get WHAPCALENDAR_URL "$WHAP_ENV_FILE" || true)"
   local whap_wc_public_url="$(env_get WHAPCALENDAR_PUBLIC_URL "$WHAP_ENV_FILE" || true)"
+  local whap_wc_internal_url="$(env_get WHAPCALENDAR_INTERNAL_URL "$WHAP_ENV_FILE" || true)"
   local wc_whap_url="$(env_get NEXT_PUBLIC_WHAP_URL "$WC_ENV_PATH" || true)"
   local wc_whap_api="$(env_get WHAP_API_BASE_URL "$WC_ENV_PATH" || true)"
   local wc_webapp_url="$(env_get NEXT_PUBLIC_WEBAPP_URL "$WC_ENV_PATH" || true)"
@@ -265,6 +279,7 @@ check_env_values() {
   local wc_web_app_url="$(env_get WEB_APP_URL "$WC_ENV_PATH" || true)"
   local wc_embed_url="$(env_get NEXT_PUBLIC_EMBED_LIB_URL "$WC_ENV_PATH" || true)"
   local expected_api="$(expected_whap_api_base_url)"
+  local expected_wc_internal_url="$(expected_whapcalendar_internal_url)"
 
   info ""
   info "WHAPCALENDAR_WEBHOOK_SECRET:"
@@ -279,6 +294,7 @@ check_env_values() {
 
   [[ "$whap_wc_url" == "$WHAPCALENDAR_URL" ]] || { fail "Whap WHAPCALENDAR_URL=$whap_wc_url expected $WHAPCALENDAR_URL"; failures=$((failures + 1)); }
   [[ "$whap_wc_public_url" == "$WHAPCALENDAR_URL" ]] || { fail "Whap WHAPCALENDAR_PUBLIC_URL=$whap_wc_public_url expected $WHAPCALENDAR_URL"; failures=$((failures + 1)); }
+  [[ "$whap_wc_internal_url" == "$expected_wc_internal_url" ]] || { fail "Whap WHAPCALENDAR_INTERNAL_URL=$whap_wc_internal_url expected $expected_wc_internal_url"; failures=$((failures + 1)); }
   [[ "$wc_webapp_url" == "$WHAPCALENDAR_URL" ]] || { fail "WC NEXT_PUBLIC_WEBAPP_URL=$wc_webapp_url expected $WHAPCALENDAR_URL"; failures=$((failures + 1)); }
   [[ "$wc_nextauth_url" == "$WHAPCALENDAR_URL" ]] || { fail "WC NEXTAUTH_URL=$wc_nextauth_url expected $WHAPCALENDAR_URL"; failures=$((failures + 1)); }
   [[ "$wc_web_app_url" == "$WHAPCALENDAR_URL" ]] || { fail "WC WEB_APP_URL=$wc_web_app_url expected $WHAPCALENDAR_URL"; failures=$((failures + 1)); }

@@ -119,6 +119,18 @@ These files must not be committed. They are ignored by `.gitignore` because they
 
 `WHAPCALENDAR_WEBHOOK_SECRET` is the shared webhook secret used by both Whap and WhapCalendar. It must be identical in the Whap `.env`, the active WhapCalendar env file, and both runtimes. This value must only come from the matching source-of-truth file and must never be generated independently by a deploy script on the VPS.
 
+`WHAP_API_BASE_URL` is the server-side URL WhapCalendar uses to call Whap. If it is omitted from the source file, `whap-env-sync` falls back to `http://whap/api` for local and VPS. Define `WHAP_API_BASE_URL` in the source file when an environment needs a different route.
+
+Local Docker development expects Whap and WhapCalendar to share the external Docker network `whap-shared-testing`. Create it once before starting either app:
+
+```bash
+docker network create whap-shared-testing
+```
+
+Whap already attaches `laravel.test` to this network with alias `whap`. WhapCalendar `docker-compose.dev.yml` also attaches dev containers to the same network, so local WC server-side calls should use `WHAP_API_BASE_URL=http://whap/api`.
+
+For local Whap server-side calls back to WhapCalendar, use `WHAPCALENDAR_INTERNAL_URL=http://whapcalendar:3000`. Browser-visible WhapCalendar URLs should remain `http://localhost:3000`.
+
 ## Docker Cleanup
 
 Use the shared Docker cleanup helper when WhapCalendar or Whap Docker builds fail with `no space left on device`, or before a large rebuild on a cramped VPS:
@@ -194,6 +206,7 @@ WHAP_PATH=/home/greg/apps/dev.whap.uy
 WHAP_BRANCH=develop
 WHAP_URL=https://dev.whap.uy
 WHAP_APP_PORT=8002
+WHAP_API_BASE_URL=http://whap/api
 WHAPCALENDAR_PATH=/home/greg/apps/dev.whapcalendar.uy
 WHAPCALENDAR_BRANCH=develop
 WHAPCALENDAR_URL=https://dev.whap.uy:8444
@@ -209,6 +222,7 @@ WHAP_PATH=/home/greg/apps/whap.uy
 WHAP_BRANCH=main
 WHAP_URL=https://whap.uy
 WHAP_APP_PORT=8001
+WHAP_API_BASE_URL=http://whap/api
 WHAPCALENDAR_PATH=/home/greg/apps/whapcalendar.uy
 WHAPCALENDAR_BRANCH=main
 WHAPCALENDAR_URL=https://whap.uy:8443
