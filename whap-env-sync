@@ -169,6 +169,13 @@ load_source() {
   WHAPCALENDAR_INTERNAL_URL="$(env_get WHAPCALENDAR_INTERNAL_URL "$SOURCE_FILE" || true)"
   WHAPCALENDAR_ENV_FILE="$(env_get WHAPCALENDAR_ENV_FILE "$SOURCE_FILE" || true)"
   WHAPCALENDAR_WEBHOOK_SECRET="$(env_get WHAPCALENDAR_WEBHOOK_SECRET "$SOURCE_FILE" || true)"
+  WHAPCALENDAR_API_SECRET="$(env_get WHAPCALENDAR_API_SECRET "$SOURCE_FILE" || true)"
+  WHAPCALENDAR_SSO_SECRET="$(env_get WHAPCALENDAR_SSO_SECRET "$SOURCE_FILE" || true)"
+  WHAPCALENDAR_CONTEXT_SECRET="$(env_get WHAPCALENDAR_CONTEXT_SECRET "$SOURCE_FILE" || true)"
+
+  WHAPCALENDAR_API_SECRET="${WHAPCALENDAR_API_SECRET:-$WHAPCALENDAR_WEBHOOK_SECRET}"
+  WHAPCALENDAR_SSO_SECRET="${WHAPCALENDAR_SSO_SECRET:-$WHAPCALENDAR_WEBHOOK_SECRET}"
+  WHAPCALENDAR_CONTEXT_SECRET="${WHAPCALENDAR_CONTEXT_SECRET:-$WHAPCALENDAR_WEBHOOK_SECRET}"
 
   WHAP_ENV_FILE="$WHAP_PATH/.env"
   WC_ENV_PATH="$WHAPCALENDAR_PATH/$WHAPCALENDAR_ENV_FILE"
@@ -184,6 +191,9 @@ validate_source_values() {
   [[ -n "$WHAPCALENDAR_URL" ]] || { fail "WHAPCALENDAR_URL is missing"; failures=$((failures + 1)); }
   [[ -n "$WHAPCALENDAR_ENV_FILE" ]] || { fail "WHAPCALENDAR_ENV_FILE is missing"; failures=$((failures + 1)); }
   [[ -n "$WHAPCALENDAR_WEBHOOK_SECRET" ]] || { fail "WHAPCALENDAR_WEBHOOK_SECRET is missing in source"; failures=$((failures + 1)); }
+  [[ -n "$WHAPCALENDAR_API_SECRET" ]] || { fail "WHAPCALENDAR_API_SECRET is missing in source"; failures=$((failures + 1)); }
+  [[ -n "$WHAPCALENDAR_SSO_SECRET" ]] || { fail "WHAPCALENDAR_SSO_SECRET is missing in source"; failures=$((failures + 1)); }
+  [[ -n "$WHAPCALENDAR_CONTEXT_SECRET" ]] || { fail "WHAPCALENDAR_CONTEXT_SECRET is missing in source"; failures=$((failures + 1)); }
 
   if [[ "$TARGET" == "local" ]]; then
     [[ "$WHAP_URL" == http://localhost:* || "$WHAP_URL" == http://127.0.0.1:* ]] || { fail "local WHAP_URL must be localhost/127.0.0.1"; failures=$((failures + 1)); }
@@ -269,6 +279,12 @@ check_env_values() {
   local source_secret="$WHAPCALENDAR_WEBHOOK_SECRET"
   local whap_secret="$(env_get WHAPCALENDAR_WEBHOOK_SECRET "$WHAP_ENV_FILE" || true)"
   local wc_secret="$(env_get WHAPCALENDAR_WEBHOOK_SECRET "$WC_ENV_PATH" || true)"
+  local whap_api_secret="$(env_get WHAPCALENDAR_API_SECRET "$WHAP_ENV_FILE" || true)"
+  local wc_api_secret="$(env_get WHAPCALENDAR_API_SECRET "$WC_ENV_PATH" || true)"
+  local whap_sso_secret="$(env_get WHAPCALENDAR_SSO_SECRET "$WHAP_ENV_FILE" || true)"
+  local wc_sso_secret="$(env_get WHAPCALENDAR_SSO_SECRET "$WC_ENV_PATH" || true)"
+  local whap_context_secret="$(env_get WHAPCALENDAR_CONTEXT_SECRET "$WHAP_ENV_FILE" || true)"
+  local wc_context_secret="$(env_get WHAPCALENDAR_CONTEXT_SECRET "$WC_ENV_PATH" || true)"
   local whap_wc_url="$(env_get WHAPCALENDAR_URL "$WHAP_ENV_FILE" || true)"
   local whap_wc_public_url="$(env_get WHAPCALENDAR_PUBLIC_URL "$WHAP_ENV_FILE" || true)"
   local whap_wc_internal_url="$(env_get WHAPCALENDAR_INTERNAL_URL "$WHAP_ENV_FILE" || true)"
@@ -287,10 +303,43 @@ check_env_values() {
   info "- whap .env: $(display_secret "$whap_secret")"
   info "- wc .env: $(display_secret "$wc_secret")"
 
+  info ""
+  info "WHAPCALENDAR_API_SECRET:"
+  info "- source: $(display_secret "$WHAPCALENDAR_API_SECRET")"
+  info "- whap .env: $(display_secret "$whap_api_secret")"
+  info "- wc .env: $(display_secret "$wc_api_secret")"
+
+  info ""
+  info "WHAPCALENDAR_SSO_SECRET:"
+  info "- source: $(display_secret "$WHAPCALENDAR_SSO_SECRET")"
+  info "- whap .env: $(display_secret "$whap_sso_secret")"
+  info "- wc .env: $(display_secret "$wc_sso_secret")"
+
+  info ""
+  info "WHAPCALENDAR_CONTEXT_SECRET:"
+  info "- source: $(display_secret "$WHAPCALENDAR_CONTEXT_SECRET")"
+  info "- whap .env: $(display_secret "$whap_context_secret")"
+  info "- wc .env: $(display_secret "$wc_context_secret")"
+
   [[ -n "$whap_secret" ]] || { fail "Whap WHAPCALENDAR_WEBHOOK_SECRET is empty"; failures=$((failures + 1)); }
   [[ -n "$wc_secret" ]] || { fail "WhapCalendar WHAPCALENDAR_WEBHOOK_SECRET is empty"; failures=$((failures + 1)); }
   [[ "$whap_secret" == "$source_secret" ]] || { fail "Whap secret differs from source"; failures=$((failures + 1)); }
   [[ "$wc_secret" == "$source_secret" ]] || { fail "WhapCalendar secret differs from source"; failures=$((failures + 1)); }
+
+  [[ -n "$whap_api_secret" ]] || { fail "Whap WHAPCALENDAR_API_SECRET is empty"; failures=$((failures + 1)); }
+  [[ -n "$wc_api_secret" ]] || { fail "WhapCalendar WHAPCALENDAR_API_SECRET is empty"; failures=$((failures + 1)); }
+  [[ "$whap_api_secret" == "$WHAPCALENDAR_API_SECRET" ]] || { fail "Whap API secret differs from source"; failures=$((failures + 1)); }
+  [[ "$wc_api_secret" == "$WHAPCALENDAR_API_SECRET" ]] || { fail "WhapCalendar API secret differs from source"; failures=$((failures + 1)); }
+
+  [[ -n "$whap_sso_secret" ]] || { fail "Whap WHAPCALENDAR_SSO_SECRET is empty"; failures=$((failures + 1)); }
+  [[ -n "$wc_sso_secret" ]] || { fail "WhapCalendar WHAPCALENDAR_SSO_SECRET is empty"; failures=$((failures + 1)); }
+  [[ "$whap_sso_secret" == "$WHAPCALENDAR_SSO_SECRET" ]] || { fail "Whap SSO secret differs from source"; failures=$((failures + 1)); }
+  [[ "$wc_sso_secret" == "$WHAPCALENDAR_SSO_SECRET" ]] || { fail "WhapCalendar SSO secret differs from source"; failures=$((failures + 1)); }
+
+  [[ -n "$whap_context_secret" ]] || { fail "Whap WHAPCALENDAR_CONTEXT_SECRET is empty"; failures=$((failures + 1)); }
+  [[ -n "$wc_context_secret" ]] || { fail "WhapCalendar WHAPCALENDAR_CONTEXT_SECRET is empty"; failures=$((failures + 1)); }
+  [[ "$whap_context_secret" == "$WHAPCALENDAR_CONTEXT_SECRET" ]] || { fail "Whap context secret differs from source"; failures=$((failures + 1)); }
+  [[ "$wc_context_secret" == "$WHAPCALENDAR_CONTEXT_SECRET" ]] || { fail "WhapCalendar context secret differs from source"; failures=$((failures + 1)); }
 
   [[ "$whap_wc_url" == "$WHAPCALENDAR_URL" ]] || { fail "Whap WHAPCALENDAR_URL=$whap_wc_url expected $WHAPCALENDAR_URL"; failures=$((failures + 1)); }
   [[ "$whap_wc_public_url" == "$WHAPCALENDAR_URL" ]] || { fail "Whap WHAPCALENDAR_PUBLIC_URL=$whap_wc_public_url expected $WHAPCALENDAR_URL"; failures=$((failures + 1)); }
@@ -383,7 +432,10 @@ run_apply() {
     WHAPCALENDAR_URL "$WHAPCALENDAR_URL" \
     WHAPCALENDAR_PUBLIC_URL "$WHAPCALENDAR_URL" \
     WHAPCALENDAR_INTERNAL_URL "$(expected_whapcalendar_internal_url)" \
-    WHAPCALENDAR_WEBHOOK_SECRET "$WHAPCALENDAR_WEBHOOK_SECRET"
+    WHAPCALENDAR_WEBHOOK_SECRET "$WHAPCALENDAR_WEBHOOK_SECRET" \
+    WHAPCALENDAR_API_SECRET "$WHAPCALENDAR_API_SECRET" \
+    WHAPCALENDAR_SSO_SECRET "$WHAPCALENDAR_SSO_SECRET" \
+    WHAPCALENDAR_CONTEXT_SECRET "$WHAPCALENDAR_CONTEXT_SECRET"
 
   apply_env_file "$WC_ENV_PATH" \
     NEXT_PUBLIC_WEBAPP_URL "$WHAPCALENDAR_URL" \
@@ -396,7 +448,10 @@ run_apply() {
     NEXT_PUBLIC_WHAP_LOGIN_URL "$WHAP_URL/login" \
     NEXT_PUBLIC_WHAP_PROFILE_URL "$WHAP_URL/backoffice/settings/profile" \
     WHAP_API_BASE_URL "$expected_api" \
-    WHAPCALENDAR_WEBHOOK_SECRET "$WHAPCALENDAR_WEBHOOK_SECRET"
+    WHAPCALENDAR_WEBHOOK_SECRET "$WHAPCALENDAR_WEBHOOK_SECRET" \
+    WHAPCALENDAR_API_SECRET "$WHAPCALENDAR_API_SECRET" \
+    WHAPCALENDAR_SSO_SECRET "$WHAPCALENDAR_SSO_SECRET" \
+    WHAPCALENDAR_CONTEXT_SECRET "$WHAPCALENDAR_CONTEXT_SECRET"
 
   info ""
   info "Apply complete. Re-run: $0 check $TARGET"
@@ -411,7 +466,10 @@ run_runtime() {
   load_source
   print_summary
   info ""
-  info "Expected secret: $(display_secret "$WHAPCALENDAR_WEBHOOK_SECRET")"
+  info "Expected WHAPCALENDAR_WEBHOOK_SECRET: $(display_secret "$WHAPCALENDAR_WEBHOOK_SECRET")"
+  info "Expected WHAPCALENDAR_API_SECRET: $(display_secret "$WHAPCALENDAR_API_SECRET")"
+  info "Expected WHAPCALENDAR_SSO_SECRET: $(display_secret "$WHAPCALENDAR_SSO_SECRET")"
+  info "Expected WHAPCALENDAR_CONTEXT_SECRET: $(display_secret "$WHAPCALENDAR_CONTEXT_SECRET")"
 
   if compose_command_exists "$WHAP_PATH"; then
     info ""
@@ -434,9 +492,14 @@ run_runtime() {
     if WC_ENV_FILE="$WHAPCALENDAR_ENV_FILE" docker compose --project-directory "$WHAPCALENDAR_PATH" -f "$WHAPCALENDAR_PATH/docker-compose.wc.yml" --env-file "$WC_ENV_PATH" ps >/dev/null 2>&1; then
       if WC_ENV_FILE="$WHAPCALENDAR_ENV_FILE" docker compose --project-directory "$WHAPCALENDAR_PATH" -f "$WHAPCALENDAR_PATH/docker-compose.wc.yml" --env-file "$WC_ENV_PATH" ps --services --filter status=running 2>/dev/null | grep -q '^calcom$'; then
         local runtime_secret=""
-        runtime_secret=$(WC_ENV_FILE="$WHAPCALENDAR_ENV_FILE" docker compose --project-directory "$WHAPCALENDAR_PATH" -f "$WHAPCALENDAR_PATH/docker-compose.wc.yml" --env-file "$WC_ENV_PATH" exec -T calcom printenv WHAPCALENDAR_WEBHOOK_SECRET 2>/dev/null || true)
-        info "calcom WHAPCALENDAR_WEBHOOK_SECRET: $(display_secret "$runtime_secret")"
-        [[ "$runtime_secret" == "$WHAPCALENDAR_WEBHOOK_SECRET" ]] || return 1
+        local secret_key=""
+        local expected_secret=""
+        for secret_key in WHAPCALENDAR_WEBHOOK_SECRET WHAPCALENDAR_API_SECRET WHAPCALENDAR_SSO_SECRET WHAPCALENDAR_CONTEXT_SECRET; do
+          expected_secret="${!secret_key}"
+          runtime_secret=$(WC_ENV_FILE="$WHAPCALENDAR_ENV_FILE" docker compose --project-directory "$WHAPCALENDAR_PATH" -f "$WHAPCALENDAR_PATH/docker-compose.wc.yml" --env-file "$WC_ENV_PATH" exec -T calcom printenv "$secret_key" 2>/dev/null || true)
+          info "calcom $secret_key: $(display_secret "$runtime_secret")"
+          [[ "$runtime_secret" == "$expected_secret" ]] || return 1
+        done
       else
         warn "WhapCalendar calcom container is not running"
       fi
