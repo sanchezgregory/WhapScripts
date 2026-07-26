@@ -22,6 +22,13 @@ Apply integration variables to both project `.env` files:
 /Users/gregorysanchez/projects/WhapScripts/whap-env-sync apply local
 ```
 
+Rotate all four integration secrets and synchronize both projects without
+printing their values:
+
+```bash
+/Users/gregorysanchez/projects/WhapScripts/whap-env-sync rotate local
+```
+
 Validate running containers when available:
 
 ```bash
@@ -123,7 +130,7 @@ Add these source files when using the same script on the VPS:
 
 These files must not be committed. They are ignored by `.gitignore` because they contain shared secrets.
 
-`WHAPCALENDAR_WEBHOOK_SECRET`, `WHAPCALENDAR_API_SECRET`, `WHAPCALENDAR_SSO_SECRET`, and `WHAPCALENDAR_CONTEXT_SECRET` are shared integration secrets used by both Whap and WhapCalendar. They must match in the Whap `.env`, the active WhapCalendar env file, and both runtimes. These values must only come from the matching source-of-truth file and must never be generated independently by a deploy script on the VPS. If `WHAPCALENDAR_API_SECRET`, `WHAPCALENDAR_SSO_SECRET`, or `WHAPCALENDAR_CONTEXT_SECRET` are omitted from the source file, `whap-env-sync` uses `WHAPCALENDAR_WEBHOOK_SECRET` as the fallback value and writes all four keys during `apply`.
+`WHAPCALENDAR_WEBHOOK_SECRET`, `WHAPCALENDAR_API_SECRET`, `WHAPCALENDAR_SSO_SECRET`, and `WHAPCALENDAR_CONTEXT_SECRET` are shared integration secrets used by both Whap and WhapCalendar. They must each contain at least 32 characters, be distinct, and match in the Whap `.env`, the active WhapCalendar env file, and both runtimes. These values must only come from the matching source-of-truth file and must never be generated independently by a deploy script. Use `whap-env-sync rotate <environment>` for coordinated rotation and synchronization.
 
 `WHAP_API_BASE_URL` is the server-side URL WhapCalendar uses to call Whap. If it is omitted from the source file, `whap-env-sync` falls back to `http://whap/api` for local and VPS. Define `WHAP_API_BASE_URL` in the source file when an environment needs a different route.
 

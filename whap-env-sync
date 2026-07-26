@@ -11,12 +11,14 @@ Whap integration env sync
 Usage:
   whap-env-sync check local|dev|prod
   whap-env-sync apply local|dev|prod [--dry-run]
+  whap-env-sync rotate local|dev|prod [--dry-run]
   whap-env-sync runtime local|dev|prod
   whap-env-sync smoke local|dev|prod
 
 Commands:
   check    Validate source, project env files, branches, URLs, and shared secret hashes.
   apply    Write only Whap/WhapCalendar integration variables to the selected env files.
+  rotate   Generate four distinct integration secrets and apply them to both projects.
   runtime  Validate running containers can see the expected integration variables when available.
   smoke    Check configured public URLs and recent integration log errors when available.
 
@@ -61,7 +63,7 @@ if [[ -z "$COMMAND" || -z "$TARGET" ]]; then
   exit 1
 fi
 
-if [[ "$COMMAND" != "check" && "$COMMAND" != "apply" && "$COMMAND" != "runtime" && "$COMMAND" != "smoke" ]]; then
+if [[ "$COMMAND" != "check" && "$COMMAND" != "apply" && "$COMMAND" != "rotate" && "$COMMAND" != "runtime" && "$COMMAND" != "smoke" ]]; then
   echo "Invalid command: $COMMAND" >&2
   usage >&2
   exit 1
@@ -173,16 +175,21 @@ load_source() {
   WHAPCALENDAR_SSO_SECRET="$(env_get WHAPCALENDAR_SSO_SECRET "$SOURCE_FILE" || true)"
   WHAPCALENDAR_CONTEXT_SECRET="$(env_get WHAPCALENDAR_CONTEXT_SECRET "$SOURCE_FILE" || true)"
 
-  WHAPCALENDAR_API_SECRET="${WHAPCALENDAR_API_SECRET:-$WHAPCALENDAR_WEBHOOK_SECRET}"
-  WHAPCALENDAR_SSO_SECRET="${WHAPCALENDAR_SSO_SECRET:-$WHAPCALENDAR_WEBHOOK_SECRET}"
-  WHAPCALENDAR_CONTEXT_SECRET="${WHAPCALENDAR_CONTEXT_SECRET:-$WHAPCALENDAR_WEBHOOK_SECRET}"
-
   WHAP_ENV_FILE="$WHAP_PATH/.env"
   WC_ENV_PATH="$WHAPCALENDAR_PATH/$WHAPCALENDAR_ENV_FILE"
 }
 
 validate_source_values() {
   local failures=0
+  local secret=""
+  local existing=""
+  local -a secrets=(
+    "$WHAPCALENDAR_WEBHOOK_SECRET"
+    "$WHAPCALENDAR_API_SECRET"
+    "$WHAPCALENDAR_SSO_SECRET"
+    "$WHAPCALENDAR_CONTEXT_SECRET"
+  )
+  local -a validated_secrets=()
 
   [[ "$ENVIRONMENT" == "$TARGET" ]] || { fail "ENVIRONMENT=$ENVIRONMENT does not match target=$TARGET"; failures=$((failures + 1)); }
   [[ -n "$WHAP_PATH" ]] || { fail "WHAP_PATH is missing"; failures=$((failures + 1)); }
@@ -194,6 +201,23 @@ validate_source_values() {
   [[ -n "$WHAPCALENDAR_API_SECRET" ]] || { fail "WHAPCALENDAR_API_SECRET is missing in source"; failures=$((failures + 1)); }
   [[ -n "$WHAPCALENDAR_SSO_SECRET" ]] || { fail "WHAPCALENDAR_SSO_SECRET is missing in source"; failures=$((failures + 1)); }
   [[ -n "$WHAPCALENDAR_CONTEXT_SECRET" ]] || { fail "WHAPCALENDAR_CONTEXT_SECRET is missing in source"; failures=$((failures + 1)); }
+
+  for secret in "${secrets[@]}"; do
+    if [[ ${#secret} -lt 32 ]]; then
+      fail "Integration secrets must each contain at least 32 characters"
+      failures=$((failures + 1))
+      break
+    fi
+
+    for existing in "${validated_secrets[@]:-}"; do
+      if [[ "$secret" == "$existing" ]]; then
+        fail "Integration secrets must be distinct"
+        failures=$((failures + 1))
+        break 2
+      fi
+    done
+    validated_secrets+=("$secret")
+  done
 
   if [[ "$TARGET" == "local" ]]; then
     [[ "$WHAP_URL" == http://localhost:* || "$WHAP_URL" == http://127.0.0.1:* ]] || { fail "local WHAP_URL must be localhost/127.0.0.1"; failures=$((failures + 1)); }
@@ -457,6 +481,27 @@ run_apply() {
   info "Apply complete. Re-run: $0 check $TARGET"
 }
 
+run_rotate() {
+  load_source
+  print_summary
+  validate_paths_and_branches
+
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    info "Would generate four distinct integration secrets and apply them to both projects."
+    return 0
+  fi
+
+  backup_file "$SOURCE_FILE"
+  env_set WHAPCALENDAR_WEBHOOK_SECRET "$(openssl rand -hex 32)" "$SOURCE_FILE"
+  env_set WHAPCALENDAR_API_SECRET "$(openssl rand -hex 32)" "$SOURCE_FILE"
+  env_set WHAPCALENDAR_SSO_SECRET "$(openssl rand -hex 32)" "$SOURCE_FILE"
+  env_set WHAPCALENDAR_CONTEXT_SECRET "$(openssl rand -hex 32)" "$SOURCE_FILE"
+  chmod 600 "$SOURCE_FILE"
+  info "Generated four distinct integration secrets in the source file."
+
+  run_apply
+}
+
 compose_command_exists() {
   local path="$1"
   [[ -f "$path/docker-compose.yml" || -f "$path/docker-compose.wc.yml" ]]
@@ -476,8 +521,22 @@ run_runtime() {
     info "Whap runtime:"
     if docker compose --project-directory "$WHAP_PATH" ps >/dev/null 2>&1; then
       if docker compose --project-directory "$WHAP_PATH" ps --services --filter status=running 2>/dev/null | grep -q '^laravel.test$'; then
-        docker compose --project-directory "$WHAP_PATH" exec -T -u 1000 -e HOME=/tmp -w /var/www/html laravel.test php artisan tinker --execute="echo hash('sha256', (string) config('services.whapcalendar.shared_secret'));" || warn "Unable to read Whap runtime config"
-        info ""
+        local runtime_secret=""
+        local secret_key=""
+        local expected_secret=""
+        local config_key=""
+        for secret_key in WHAPCALENDAR_WEBHOOK_SECRET WHAPCALENDAR_API_SECRET WHAPCALENDAR_SSO_SECRET WHAPCALENDAR_CONTEXT_SECRET; do
+          expected_secret="${!secret_key}"
+          case "$secret_key" in
+            WHAPCALENDAR_WEBHOOK_SECRET) config_key="services.whapcalendar.webhook_secret" ;;
+            WHAPCALENDAR_API_SECRET) config_key="services.whapcalendar.api_secret" ;;
+            WHAPCALENDAR_SSO_SECRET) config_key="services.whapcalendar.sso_secret" ;;
+            WHAPCALENDAR_CONTEXT_SECRET) config_key="services.whapcalendar.context_secret" ;;
+          esac
+          runtime_secret=$(docker compose --project-directory "$WHAP_PATH" exec -T -u 1000 -e HOME=/tmp -w /var/www/html laravel.test php artisan tinker --execute="echo (string) config('$config_key');" 2>/dev/null || true)
+          info "laravel.test $secret_key: $(display_secret "$runtime_secret")"
+          [[ "$runtime_secret" == "$expected_secret" ]] || return 1
+        done
       else
         warn "Whap laravel.test container is not running"
       fi
@@ -486,7 +545,27 @@ run_runtime() {
     fi
   fi
 
-  if [[ -f "$WHAPCALENDAR_PATH/docker-compose.wc.yml" ]]; then
+  if [[ "$TARGET" == "local" && -f "$WHAPCALENDAR_PATH/docker-compose.dev.yml" ]]; then
+    info ""
+    info "WhapCalendar runtime:"
+    if docker compose --project-directory "$WHAPCALENDAR_PATH" -f "$WHAPCALENDAR_PATH/docker-compose.dev.yml" ps >/dev/null 2>&1; then
+      if docker compose --project-directory "$WHAPCALENDAR_PATH" -f "$WHAPCALENDAR_PATH/docker-compose.dev.yml" ps --services --filter status=running 2>/dev/null | grep -q '^calcom-dev$'; then
+        local runtime_secret=""
+        local secret_key=""
+        local expected_secret=""
+        for secret_key in WHAPCALENDAR_WEBHOOK_SECRET WHAPCALENDAR_API_SECRET WHAPCALENDAR_SSO_SECRET WHAPCALENDAR_CONTEXT_SECRET; do
+          expected_secret="${!secret_key}"
+          runtime_secret=$(docker compose --project-directory "$WHAPCALENDAR_PATH" -f "$WHAPCALENDAR_PATH/docker-compose.dev.yml" exec -T calcom-dev printenv "$secret_key" 2>/dev/null || true)
+          info "calcom-dev $secret_key: $(display_secret "$runtime_secret")"
+          [[ "$runtime_secret" == "$expected_secret" ]] || return 1
+        done
+      else
+        warn "WhapCalendar calcom-dev container is not running"
+      fi
+    else
+      warn "Unable to inspect WhapCalendar development runtime"
+    fi
+  elif [[ -f "$WHAPCALENDAR_PATH/docker-compose.wc.yml" ]]; then
     info ""
     info "WhapCalendar runtime:"
     if WC_ENV_FILE="$WHAPCALENDAR_ENV_FILE" docker compose --project-directory "$WHAPCALENDAR_PATH" -f "$WHAPCALENDAR_PATH/docker-compose.wc.yml" --env-file "$WC_ENV_PATH" ps >/dev/null 2>&1; then
@@ -509,9 +588,9 @@ run_runtime() {
   fi
 }
 
-curl_head() {
+curl_url() {
   local url="$1"
-  if curl -fsSIL --max-time 5 "$url" >/dev/null 2>&1; then
+  if curl -fsSL --max-time 30 -o /dev/null "$url"; then
     info "OK: $url"
   else
     warn "URL did not respond successfully: $url"
@@ -524,8 +603,8 @@ run_smoke() {
   load_source
   print_summary
   info ""
-  curl_head "$WHAP_URL" || failures=$((failures + 1))
-  curl_head "$WHAPCALENDAR_URL" || failures=$((failures + 1))
+  curl_url "$WHAP_URL" || failures=$((failures + 1))
+  curl_url "$WHAPCALENDAR_URL" || failures=$((failures + 1))
 
   if [[ -f "$WHAPCALENDAR_PATH/docker-compose.wc.yml" ]]; then
     info ""
@@ -549,6 +628,10 @@ case "$COMMAND" in
     ;;
   apply)
     run_apply
+    ;;
+  rotate)
+    require_command openssl
+    run_rotate
     ;;
   runtime)
     require_command docker
