@@ -288,6 +288,18 @@ expected_whap_api_base_url() {
   printf 'http://whap/api'
 }
 
+# WhapCalendar registers `${WHAP_WEBHOOK_BASE_URL}/webhooks/whapcalendar` as the
+# Cal.com subscriber URL, so it must be reachable over HTTP. It is kept in sync
+# with the API base URL unless the source explicitly overrides it.
+expected_whap_webhook_base_url() {
+  if [[ -n "${WHAP_WEBHOOK_BASE_URL:-}" ]]; then
+    printf '%s' "$WHAP_WEBHOOK_BASE_URL"
+    return
+  fi
+
+  expected_whap_api_base_url
+}
+
 expected_allowed_hostnames() {
   if [[ "$TARGET" == "local" ]]; then
     printf '%s' "'\"localhost:3000\",\"127.0.0.1:3000\"'"
@@ -314,11 +326,13 @@ check_env_values() {
   local whap_wc_internal_url="$(env_get WHAPCALENDAR_INTERNAL_URL "$WHAP_ENV_FILE" || true)"
   local wc_whap_url="$(env_get NEXT_PUBLIC_WHAP_URL "$WC_ENV_PATH" || true)"
   local wc_whap_api="$(env_get WHAP_API_BASE_URL "$WC_ENV_PATH" || true)"
+  local wc_whap_webhook="$(env_get WHAP_WEBHOOK_BASE_URL "$WC_ENV_PATH" || true)"
   local wc_webapp_url="$(env_get NEXT_PUBLIC_WEBAPP_URL "$WC_ENV_PATH" || true)"
   local wc_nextauth_url="$(env_get NEXTAUTH_URL "$WC_ENV_PATH" || true)"
   local wc_web_app_url="$(env_get WEB_APP_URL "$WC_ENV_PATH" || true)"
   local wc_embed_url="$(env_get NEXT_PUBLIC_EMBED_LIB_URL "$WC_ENV_PATH" || true)"
   local expected_api="$(expected_whap_api_base_url)"
+  local expected_webhook="$(expected_whap_webhook_base_url)"
   local expected_wc_internal_url="$(expected_whapcalendar_internal_url)"
 
   info ""
@@ -374,6 +388,7 @@ check_env_values() {
   [[ "$wc_embed_url" == "$WHAPCALENDAR_URL/embed/embed.js" ]] || { fail "WC NEXT_PUBLIC_EMBED_LIB_URL=$wc_embed_url expected $WHAPCALENDAR_URL/embed/embed.js"; failures=$((failures + 1)); }
   [[ "$wc_whap_url" == "$WHAP_URL" ]] || { fail "WC NEXT_PUBLIC_WHAP_URL=$wc_whap_url expected $WHAP_URL"; failures=$((failures + 1)); }
   [[ "$wc_whap_api" == "$expected_api" ]] || { fail "WC WHAP_API_BASE_URL=$wc_whap_api expected $expected_api"; failures=$((failures + 1)); }
+  [[ "$wc_whap_webhook" == "$expected_webhook" ]] || { fail "WC WHAP_WEBHOOK_BASE_URL=$wc_whap_webhook expected $expected_webhook"; failures=$((failures + 1)); }
 
   return "$failures"
 }
@@ -450,6 +465,7 @@ run_apply() {
   validate_paths_and_branches
 
   local expected_api="$(expected_whap_api_base_url)"
+  local expected_webhook="$(expected_whap_webhook_base_url)"
   local expected_allowed="$(expected_allowed_hostnames)"
 
   apply_env_file "$WHAP_ENV_FILE" \
@@ -472,6 +488,7 @@ run_apply() {
     NEXT_PUBLIC_WHAP_LOGIN_URL "$WHAP_URL/login" \
     NEXT_PUBLIC_WHAP_PROFILE_URL "$WHAP_URL/backoffice/settings/profile" \
     WHAP_API_BASE_URL "$expected_api" \
+    WHAP_WEBHOOK_BASE_URL "$expected_webhook" \
     WHAPCALENDAR_WEBHOOK_SECRET "$WHAPCALENDAR_WEBHOOK_SECRET" \
     WHAPCALENDAR_API_SECRET "$WHAPCALENDAR_API_SECRET" \
     WHAPCALENDAR_SSO_SECRET "$WHAPCALENDAR_SSO_SECRET" \
